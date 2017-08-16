@@ -1,11 +1,22 @@
 package greg.checkers;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
+import android.preference.PreferenceManager;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,21 +30,77 @@ import greg.checkers.game.Position;
 
 import static android.content.ContentValues.TAG;
 
-public class MyCheckersActivity extends Activity {
+public class MyCheckersActivity extends AppCompatActivity {
     private CheckersGame gamelogic;
     private CheckersLayout checkersView;
-    private TextView statusText;
+    public TextView statusText;
+
+    private String prefDifficulty;
+    private boolean prefAllowAnyMove;
+
+    private static final String DIFFICULTY = "pref_difficulty";
+    private static final String ANY_MOVE = "pref_any_move";
 
     @Override
-    protected void onCreate(Bundle saved) {
+    protected void onCreate(Bundle saved)
+    {
         super.onCreate(saved);
-
         createGameBoard();
+        // portrait only
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        //
+        ////PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
+        //
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        sharedPreferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);
+        prefDifficulty = sharedPreferences.getString(DIFFICULTY, null);
+        prefAllowAnyMove = sharedPreferences.getBoolean(ANY_MOVE, false);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        prepTurn();
+    }
+
+    // show menu with settings icon
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu)
+    {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    // display SettingsActivity
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+
+        switch (item.getItemId()) {
+            case R.id.settings_menu_icon:
+                Intent preferencesIntent = new Intent(this, SettingsActivity.class);
+                startActivity(preferencesIntent);
+                break;
+            case R.id.new_menu_icon:
+                Toast.makeText(this,
+                        "New Game",
+                        Toast.LENGTH_SHORT).show();
+                restart();
+                break;
+            case R.id.about_menu_icon:
+                AlertDialog dialog = new AlertDialog.Builder(this)
+                        .setMessage("Checkers by Greg. \nVery Special Thanks to Charlie, Eli, and Xavy.")
+                        .setCancelable(false)
+                        .setPositiveButton("Okay", null)
+                        .create();
+                dialog.show();
+                break;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void createGameBoard()
     {
-        gamelogic = new CheckersGame();
+        gamelogic = new CheckersGame(prefAllowAnyMove);
 
         LinearLayout rootLayout = new LinearLayout(this);
         rootLayout.setOrientation(LinearLayout.VERTICAL);
@@ -54,10 +121,21 @@ public class MyCheckersActivity extends Activity {
         setContentView(rootLayout);
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
+    public void clearComputerTask() {
+        if (computerTask != null) {
+            if (computerTask.getStatus() != AsyncTask.Status.FINISHED)
+            {
+                computerTask.cancel(true);
+            }
+            computerTask = null;
+        }
+    }
 
+    // restart game
+    private void restart() {
+        clearComputerTask();
+        gamelogic.restart();
+        checkersView.refresh();
         prepTurn();
     }
 
@@ -66,16 +144,10 @@ public class MyCheckersActivity extends Activity {
     Piece selectablePieces[];
     Position moveOptions[];
 
-    Handler turnHandler = new Handler();
-    Runnable computerTurn = new Runnable() {
-        @Override
-        public void run() {
-            makeComputerTurn();
-        }
-    };
+    ComputerTurn computerTask = null;
 
     // prepare a human or computer turn
-    private void prepTurn() {
+    public void prepTurn() {
         Board board = gamelogic.getBoard();
 
         selectedPiece = null;
@@ -83,13 +155,16 @@ public class MyCheckersActivity extends Activity {
         selectablePieces = null;
         moveOptions = null;
 
+        clearComputerTask();
+
         int turn = gamelogic.whoseTurn();
 
         if (turn == CheckersGame.RED) {
-            statusText.setText("Red's (computer's) turn.");
-            // set timeout for computer turn
-            turnHandler.removeCallbacks(computerTurn);
-            turnHandler.postDelayed(computerTurn, 800);
+            statusText.setText("Red's (computer's) turn. Difficulty: "+prefDifficulty);
+
+            // run the CPU AI on another thread
+            computerTask = new ComputerTurn(this, gamelogic, prefDifficulty, prefAllowAnyMove);
+            computerTask.execute();
 
         } else if (turn == CheckersGame.BLACK) {
             statusText.setText("Black's (player's) turn.");
@@ -124,9 +199,28 @@ public class MyCheckersActivity extends Activity {
         if (gamelogic.whoseTurn() == CheckersGame.RED) {
             Move moves[] = gamelogic.getMoves();
             if (moves.length > 0) {
-                int choice = (int)(moves.length * Math.random());
-                Move move = moves[choice];
-                gamelogic.makeMove(move);
+                Move choice;
+                if (prefDifficulty.equals("Easy")) {
+                    int num = (int)(moves.length * Math.random());
+                    choice = moves[num];
+                } else {
+                    // find best move by capture amount vs king
+                    choice = moves[0];
+                    int curScore = -1;
+                    for (Move option : moves) {
+                        int score = option.captures.size();
+                        Piece startPiece = gamelogic.getBoard().getPiece(option.start());
+                        if (option.kings && !startPiece.isKing())
+                        {
+                            score += 2;
+                        }
+                        if (score > curScore) {
+                            choice = option;
+                            curScore = score;
+                        }
+                    }
+                }
+                gamelogic.makeMove(choice);
                 prepTurn();
             } else {
                 // player wins
@@ -229,4 +323,18 @@ public class MyCheckersActivity extends Activity {
             selectPiece(targetPiece, location);
         }
     }
+
+    private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener =
+            new SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String s) {
+                    // update preferences
+                    prefDifficulty = sharedPreferences.getString(DIFFICULTY, null);
+                    prefAllowAnyMove = sharedPreferences.getBoolean(ANY_MOVE, false);
+
+                    gamelogic.setAnyMove(prefAllowAnyMove);
+
+                    prepTurn();
+                }
+            };
 }

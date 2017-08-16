@@ -13,13 +13,26 @@ public class CheckersGame {
     private int turn;
     private boolean over;
     private int winner;
+    private boolean allowAnyMove;
 
     // checkers game holds board state and current turn
-    public CheckersGame() {
+    public CheckersGame(boolean anyMove) {
         gameBoard = new Board(this);
         turn = CheckersGame.BLACK;
         over = false;
         winner = CheckersGame.NONE;
+        allowAnyMove = anyMove;
+    }
+
+    public void restart() {
+        gameBoard = new Board(this);
+        turn = CheckersGame.BLACK;
+        over = false;
+        winner = CheckersGame.NONE;
+    }
+
+    public void setAnyMove(boolean anyMove) {
+        allowAnyMove = anyMove;
     }
 
     // check whose turn it is
@@ -45,43 +58,8 @@ public class CheckersGame {
         return longest;
     }
 
-    // get possible moves for current player
     public Move[] getMoves() {
-        ArrayList<Move> finalMoves = new ArrayList<>();
-        ArrayList<Move> potentialMoves = new ArrayList<>();
-        ArrayList<Position> startingPositions = new ArrayList<>();
-
-        // add moves for each matching piece
-        for (int x = 0; x < 8; x++) {
-            for (int y = 0; y < 8; y++) {
-                Piece piece = gameBoard.getPiece(x, y);
-                if (piece != null && piece.getColor() == turn) {
-                    Position start = new Position(x, y);
-                    potentialMoves.addAll(
-                        gameBoard.getMoves(start)
-                    );
-                }
-            }
-        }
-
-//        // check if there have been captures
-//        boolean noCaptures = true;
-//        for (Move sequence : potentialMoves) {
-//            if (sequence.captures.size() > 0) {
-//                noCaptures = false;
-//            }
-//        }
-//
-//        // filter appropriate moves
-//        for (Move move : potentialMoves) {
-//            if (move.captures.size() > 0 || noCaptures) {
-//                finalMoves.add(move);
-//            }
-//        }
-
-        // return choices as a sequence of positions
-        // return finalMoves.toArray(new Move[finalMoves.size()]);
-        return potentialMoves.toArray(new Move[potentialMoves.size()]);
+        return gameBoard.getMoves(turn, allowAnyMove);
     }
 
     // make a move

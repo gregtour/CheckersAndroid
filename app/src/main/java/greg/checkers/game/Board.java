@@ -6,9 +6,8 @@ import java.util.ArrayList;
  * Created by Greg on 8/6/2017.
  */ // data for complete board state
 public class Board {
-    private CheckersGame checkersGame;
+    //private CheckersGame checkersGame;
     private Piece board[][];
-    private int numPieces[];
 
     public boolean isGameSquare(int x, int y) {
         // within 8x8 dimensions and is odd-square
@@ -41,8 +40,7 @@ public class Board {
 
     // create new board
     public Board(CheckersGame checkersGame) {
-        this.checkersGame = checkersGame;
-        numPieces = new int[]{0, 0};
+        //this.checkersGame = checkersGame;
         board = new Piece[8][8];
         for (int x = 0; x < 8; x++) {
             for (int y = 0; y < 8; y++) {
@@ -50,7 +48,6 @@ public class Board {
                 boolean validSquare = this.isGameSquare(x, y);
                 if (side != CheckersGame.NONE && validSquare) {
                     board[x][y] = new Piece(side, false);
-                    numPieces[side - 1]++;
                 } else {
                     board[x][y] = null;
                 }
@@ -59,9 +56,8 @@ public class Board {
     }
 
     // create from existing positions
-    public Board(CheckersGame checkersGame, int[][] positions) {
-        this.checkersGame = checkersGame;
-        numPieces = new int[]{0, 0};
+    public Board(int[][] positions) {
+        //this.checkersGame = checkersGame;
         board = new Piece[8][8];
         for (int x = 0; x < 8; x++) {
             for (int y = 0; y < 8; y++) {
@@ -69,7 +65,6 @@ public class Board {
                     int side = positions[x][y] % CheckersGame.KINGED;
                     boolean kinged = positions[x][y] > CheckersGame.KINGED;
                     board[x][y] = new Piece(side, kinged);
-                    numPieces[side - 1]++;
                 } else {
                     board[x][y] = null;
                 }
@@ -118,7 +113,7 @@ public class Board {
     }
 
     //
-    public ArrayList<Move> getCaptures(Position start)
+    public ArrayList<Move> getCaptures(Position start, boolean allowAnyMove)
     {
         ArrayList<Move> base = new ArrayList<>();
         Piece piece = getPiece(start);
@@ -145,11 +140,12 @@ public class Board {
         }
 
         // find longest for each jump choice
-        return getCaptures(start, base);
+        return getCaptures(start, base, allowAnyMove);
     }
 
     //
-    public ArrayList<Move> getCaptures(Position start, ArrayList<Move> expand) {
+    public ArrayList<Move> getCaptures(Position start, ArrayList<Move> expand, boolean allowAnyMove)
+    {
         ArrayList<Move> finalCaptures = new ArrayList<>();
         ArrayList<Move> furtherCaptures = new ArrayList<>();
 
@@ -192,13 +188,13 @@ public class Board {
             }
 
             // only add this move if there are no longer alternatives
-            if (!continues) {
+            if (!continues || allowAnyMove) {
                 finalCaptures.add(move);
             }
         }
 
         if (furtherCaptures.size() > 0) {
-            furtherCaptures = getCaptures(start, furtherCaptures);
+            furtherCaptures = getCaptures(start, furtherCaptures, allowAnyMove);
         }
         finalCaptures.addAll(furtherCaptures);
 
@@ -206,7 +202,7 @@ public class Board {
     }
 
     // get a set of possible moves from a place on the board
-    public ArrayList<Move> getMoves(Position start) {
+    public ArrayList<Move> getMoves(Position start, boolean allowAnyMove) {
         Piece piece = getPiece(start);
 
         ArrayList<Move> immediateMoves = new ArrayList<>();
@@ -224,16 +220,53 @@ public class Board {
             }
         }
 
-        // check for captures
-        ArrayList<Move> captures = getCaptures(start);
-
+        ArrayList<Move> captures = getCaptures(start, allowAnyMove);
         immediateMoves.addAll(captures);
-
-//        if (captures.size() > 0) {
-//            return captures;
-//        } else {
         return immediateMoves;
-        //}
+    }
+
+
+    // get possible moves for current player
+    public Move[] getMoves(int turn, boolean allowAnyMove) {
+        ArrayList<Move> finalMoves;
+        ArrayList<Move> potentialMoves = new ArrayList<>();
+        ArrayList<Position> startingPositions = new ArrayList<>();
+
+        // add moves for each matching piece
+        for (int x = 0; x < 8; x++) {
+            for (int y = 0; y < 8; y++) {
+                Piece piece = getPiece(x, y);
+                if (piece != null && piece.getColor() == turn) {
+                    Position start = new Position(x, y);
+                    potentialMoves.addAll(
+                            getMoves(start, allowAnyMove)
+                    );
+                }
+            }
+        }
+
+        // check if non-jumping moves need to be removed
+        finalMoves = potentialMoves;
+        if (allowAnyMove == false) {
+            boolean areCaptures = false;
+            for (Move sequence : potentialMoves) {
+                if (sequence.captures.size() > 0) {
+                    areCaptures = true;
+                    break;
+                }
+            }
+            if (areCaptures) {
+                finalMoves = new ArrayList<>();
+                for (Move sequence : potentialMoves) {
+                    if (sequence.captures.size() > 0) {
+                        finalMoves.add(sequence);
+                    }
+                }
+            }
+        }
+
+        // return choices as a sequence of positions
+        return finalMoves.toArray(new Move[finalMoves.size()]);
     }
 
     // carry out a move sequence
@@ -249,7 +282,6 @@ public class Board {
         // clear captured positions and decrease piece count
         for (Position cap : move.captures) {
             board[cap.x][cap.y] = null;
-            numPieces[otherColor - 1]--;
         }
         // place at end position
         board[end.x][end.y] = piece;
@@ -257,5 +289,22 @@ public class Board {
         if (move.kings) {
             piece.makeKing();
         }
+    }
+
+    public int pseudoScore() {
+        int score = 0;
+        for (int x = 0; x < 8; x++) {
+            for (int y = 0; y < 8; y++) {
+                Piece piece = board[x][y];
+                if (piece != null) {
+                    int weight = piece.isKing() ? 2 : 1;
+                    if (piece.getColor() == CheckersGame.RED) {
+                        weight *= -1;
+                    }
+                    score += weight;
+                }
+            }
+        }
+        return score;
     }
 }

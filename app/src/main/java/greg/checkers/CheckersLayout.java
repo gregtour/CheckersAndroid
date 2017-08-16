@@ -2,6 +2,7 @@ package greg.checkers;
 
 import android.app.Activity;
 import android.graphics.Color;
+import android.support.v7.widget.AppCompatImageView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -14,13 +15,9 @@ import greg.checkers.game.Board;
 import greg.checkers.game.Piece;
 import greg.checkers.game.Position;
 
-/**
- * Created by Greg on 8/6/2017.
- */
-
 public class CheckersLayout extends TableLayout {
 
-    public class CheckerImageView extends ImageView {
+    public class CheckerImageView extends AppCompatImageView {
         public int x;
         public int y;
         public CheckerImageView(Activity activity) {
@@ -30,7 +27,6 @@ public class CheckersLayout extends TableLayout {
 
     protected MyCheckersActivity myActivity;
     protected CheckersGame myGame;
-    protected Board myBoard;
     protected CheckerImageView cells[][];
 
     private final OnClickListener CellClick = new OnClickListener() {
@@ -42,6 +38,7 @@ public class CheckersLayout extends TableLayout {
     };
 
     public void refresh() {
+        Board myBoard = myGame.getBoard();
         for (int x = 0; x < 8; x++) {
             for (int y = 0; y < 8; y++)
                 if (myBoard.isGameSquare(x, y)) {
@@ -98,7 +95,7 @@ public class CheckersLayout extends TableLayout {
         LayoutParams params;
 
         myGame = game;
-        myBoard = game.getBoard();
+        Board myBoard = myGame.getBoard();
 
         params = new LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -107,7 +104,7 @@ public class CheckersLayout extends TableLayout {
         setLayoutParams(params);
         setBackgroundColor(Color.rgb(48, 48, 48));
 
-        // add table of imageviews
+        // add table of image views
         cells = new CheckerImageView[8][8];
         for (int y = 0; y < 8; y++) {
             TableRow row = new TableRow(activity);
