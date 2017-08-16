@@ -36,7 +36,8 @@ public class ComputerTurn extends AsyncTask<String, String, String>
     {
         int oppositeTurn = (turn == CheckersGame.RED ? CheckersGame.BLACK : CheckersGame.RED);
         Move[] baseMoves = base.getMoves(turn, allowAnyMove);
-        int score = 0;
+
+        int score = 999;
 
         int[][] data = base.saveBoard();
         for (Move move : baseMoves)
@@ -49,6 +50,10 @@ public class ComputerTurn extends AsyncTask<String, String, String>
                 moveScore = minimax(specificBoard, oppositeTurn, depth - 1);
             } else {
                 moveScore = specificBoard.pseudoScore();
+            }
+
+            if (score == 999) {
+                score = moveScore;
             }
 
             if (turn == CheckersGame.RED) {
@@ -70,13 +75,13 @@ public class ComputerTurn extends AsyncTask<String, String, String>
         int[][] data = realBoard.saveBoard();
 
         ArrayList<Move> bestMoves = new ArrayList<>();
-        int bestScore = -1000;
+        int bestScore = 1000;
 
         for (Move move : moves) {
             Board moveBoard = new Board(data);
             moveBoard.makeMove(move);
             int score = minimax(moveBoard, CheckersGame.BLACK, depth);
-            if (score > bestScore) {
+            if (score < bestScore) {
                 bestMoves.clear();
                 bestScore = score;
             }
